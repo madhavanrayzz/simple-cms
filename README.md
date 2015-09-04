@@ -465,6 +465,7 @@ $fruits->add(trans('admin.menu.fruit.all'), ['route' => 'admin.fruit.index'])
 Now you have your fruit resource that can be manageable within your admin panel.
 
 -----
+<a name="u2"></a>
 ### How to Deploy with Rocketeer
 
 First, install rocketeer if you haven't done it before.
