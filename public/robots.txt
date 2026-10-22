@@ -1,2 +1,7 @@
 User-agent: *
 Disallow: /admin
+Disallow: /preview
+Disallow: /search
+
+# Add your sitemap with the full URL of your domain, e.g.:
+# Sitemap: https://example.com/sitemap.xml

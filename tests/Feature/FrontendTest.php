@@ -170,3 +170,20 @@ it('caches navigation pages as plain arrays, not Eloquent objects', function () 
     expect($cached[0])->toBeArray()
         ->and($cached[0])->toHaveKeys(['slug', 'title']);
 });
+
+it('does not link to an inactive category from an article', function () {
+    $category = Category::create(['title' => 'Hidden Category', 'slug' => 'hidden-category', 'is_active' => false]);
+
+    Article::create([
+        'title' => 'Orphaned Link Article',
+        'slug' => 'orphaned-link-article',
+        'content' => '<p>Body</p>',
+        'category_id' => $category->id,
+        'is_published' => true,
+        'published_at' => now(),
+    ]);
+
+    $this->get('/article/orphaned-link-article')
+        ->assertOk()
+        ->assertDontSee(route('categories.show', 'hidden-category'));
+});

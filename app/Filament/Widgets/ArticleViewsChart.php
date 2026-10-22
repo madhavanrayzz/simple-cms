@@ -30,9 +30,8 @@ class ArticleViewsChart extends ChartWidget
 
         $query = ArticleView::where('viewed_at', '>=', $startDate);
 
-        if (auth()->check() && ! auth()->user()->isAdmin()) {
-            $query->whereIn('article_id', Article::query()->visibleTo(auth()->user())->select('id'));
-        }
+        // Scoped for everyone so that views of trashed articles are not counted.
+        $query->whereIn('article_id', Article::query()->visibleTo(auth()->user())->select('id'));
 
         $viewsByDate = $query
             ->selectRaw('DATE(viewed_at) as date, COUNT(*) as count')

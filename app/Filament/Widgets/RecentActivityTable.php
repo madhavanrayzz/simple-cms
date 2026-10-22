@@ -33,9 +33,10 @@ class RecentActivityTable extends TableWidget
                     ->color('gray'),
                 TextColumn::make('status')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
                     ->color(fn (string $state): string => match ($state) {
-                        'Published' => 'success',
-                        'Draft' => 'gray',
+                        'published' => 'success',
+                        'scheduled' => 'info',
                         default => 'gray',
                     }),
                 TextColumn::make('updated_at')
@@ -56,9 +57,10 @@ class RecentActivityTable extends TableWidget
                 'title',
                 'slug',
                 'category_id',
+                'is_published',
+                'published_at',
                 'updated_at',
             ])
-            ->selectRaw("CASE WHEN is_published = 1 THEN 'Published' ELSE 'Draft' END as status")
             ->latest('updated_at')
             ->limit(5);
     }

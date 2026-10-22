@@ -68,16 +68,15 @@ class StatsOverview extends StatsOverviewWidget
         $articleQuery = Article::query()->visibleTo($user);
         $pageQuery = Page::query()->visibleTo($user);
 
-        $viewQuery = $isAdmin || ! $user
-            ? ArticleView::query()
-            : ArticleView::whereIn('article_id', (clone $articleQuery)->select('id'));
+        // Views of trashed articles are kept but not counted, for admins and editors alike.
+        $viewQuery = ArticleView::whereIn('article_id', (clone $articleQuery)->select('id'));
 
         $counts = [
             'totalViews' => (clone $viewQuery)->count(),
             'todayViews' => (clone $viewQuery)->whereDate('viewed_at', today())->count(),
             'weekViews' => (clone $viewQuery)->where('viewed_at', '>=', now()->subWeek())->count(),
             'totalArticles' => (clone $articleQuery)->count(),
-            'publishedArticles' => (clone $articleQuery)->where('is_published', true)->count(),
+            'publishedArticles' => (clone $articleQuery)->published()->count(),
             'totalCategories' => Category::count(),
             'activeCategories' => Category::where('is_active', true)->count(),
             'totalPages' => (clone $pageQuery)->count(),

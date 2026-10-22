@@ -37,6 +37,7 @@ class ArticleView extends Model
      */
     public function article(): BelongsTo
     {
-        return $this->belongsTo(Article::class);
+        // Views of trashed articles are kept, so the log must still show which article they belong to.
+        return $this->belongsTo(Article::class)->withTrashed();
     }
 }

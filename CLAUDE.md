@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A simple content management system built with Laravel 13, Filament PHP 5.6 (admin panel), DaisyUI 5 (frontend), and Lucide Icons. Manages Pages, Articles, Categories, and Media uploads with Spatie Media Library. Frontend is fully internationalized. Content is sanitized with stevebauman/purify to prevent XSS.
+A simple content management system built with Laravel 13, Filament PHP 5.10 (admin panel), DaisyUI 5 (frontend), and Lucide Icons 2. Manages Pages, Articles, Categories, Tags, and Media uploads with Spatie Media Library. Has SEO fields with Open Graph/JSON-LD, `sitemap.xml`/`robots.txt`/RSS, search (LIKE-based, titles rank first), 301 redirects from old slugs, signed draft previews, and a trash (soft deletes) for articles and pages. Frontend is fully internationalized. Content is sanitized with stevebauman/purify to prevent XSS. Tests run on Pest 5 / PHPUnit 13.
 
 ## Common Commands
 
@@ -22,7 +22,7 @@ php artisan migrate:fresh --seed  # Reset DB and seed
 php artisan db:seed       # Seed database with admin and editor users
 
 # Testing
-./vendor/bin/pest      # Run all tests
+./vendor/bin/pest      # Run all tests (Pest 5; no asset build needed, TestCase calls withoutVite())
 ./vendor/bin/pest --filter=TestName  # Run specific test
 
 # Filament
@@ -171,10 +171,12 @@ TextInput::make('password')
 - Uses DaisyUI component classes and Lucide icons (`<x-lucide-*>`)
 
 ### Models
-- `Category` - hasMany Articles
-- `Article` - belongsTo Category, has published scope, auto-generates slug, has views tracking
+- `Category` - hasMany Articles, keeps old slugs for redirects
+- `Article` - belongsTo Category, belongsToMany Tags, soft deletes, has published + `search()` scopes, `status` (draft/scheduled/published) and `reading_time` accessors, `related()` (same category or shared tag), auto-generates slug, has views tracking, `meta_title`/`meta_description`
+- `Tag` - belongsToMany Articles, auto-generates slug, managed in `TagResource` (no owner, like Category)
 - `ArticleView` - tracks article views with IP, user agent, referer
-- `Page` - self-referential (parent/children), has published scope, auto-generates slug
+- `Page` - self-referential (parent/children), soft deletes, has published scope, auto-generates slug, `meta_title`/`meta_description`, `descendantIds()` (the parent select excludes them so no cycles)
+- `SlugRedirect` - old slug → record (morph), written by the `HasSlugRedirects` trait on Article, Page, Category, Tag
 - `User` - implements FilamentUser, has role (admin/editor)
 - `MediaItem` - implements HasMedia for standalone media uploads
 
@@ -195,7 +197,7 @@ $user->isEditor(); // true if editor
 - **View Deduplication**: Article views are deduplicated per IP per 30 minutes via cache
 - **Route Constraints**: All slug routes have `[a-z0-9\-]+` regex constraints
 - **Rate Limiting**: All frontend routes are wrapped in `throttle:60,1` (`routes/web.php`) so the per-request `article_views` write path can't be used to flood the DB
-- **Security Headers**: `app/Http/Middleware/SecurityHeaders.php` (appended globally in `bootstrap/app.php`, covers `/admin` too) sets `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, a `Content-Security-Policy` (the only difference between panels is `script-src`: `/admin` adds `'unsafe-inline' 'unsafe-eval'` for Alpine, the frontend stays `'self'`), and `Strict-Transport-Security` (only emitted over HTTPS via `$request->isSecure()`). CSP is skipped entirely while the Vite `hot` file exists (i.e. during `npm run dev`) so HMR is not blocked; it always applies to built/production responses
+- **Security Headers**: `app/Http/Middleware/SecurityHeaders.php` (appended globally in `bootstrap/app.php`, covers `/admin` too) sets `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, a `Content-Security-Policy` (`fonts.bunny.net` is allowed in `style-src`/`font-src`; the only difference between panels is `script-src`: `/admin` adds `'unsafe-inline' 'unsafe-eval'` for Alpine, the frontend stays `'self'`), and `Strict-Transport-Security` (only emitted over HTTPS via `$request->isSecure()`). CSP is skipped entirely while the Vite `hot` file exists (i.e. during `npm run dev`) so HMR is not blocked; it always applies to built/production responses
 - **Trusted Proxies**: none are trusted, so `X-Forwarded-*` headers are ignored and `request()->ip()` (view tracking, dedup, throttling) can't be spoofed. CAVEAT: behind a load balancer/CDN all visitors would share the proxy's IP (collapsing the throttle and view dedup) — in that case add a `config/trustedproxy.php` with a `'proxies'` key, which the framework's `TrustProxies` middleware reads at request time. Never configure it via `env()` in the `bootstrap/app.php` middleware closure: that closure runs before `.env` is loaded, so it would silently never apply
 - **Password Policy**: The Filament `UserForm` password field uses `Password::min(8)->mixedCase()->numbers()->uncompromised()` (Have-I-Been-Pwned check + complexity)
 - **File Upload Validation**: Featured images require an explicit MIME type allowlist AND the stored filename's extension is derived from the server-detected MIME via `getUploadedFileNameForStorageUsing(... $file->guessExtension() ...)`, never from the client filename — prevents a polyglot/double-extension upload landing as an executable file under `public/storage`
@@ -232,7 +234,7 @@ The app caches in three places and follows two rules: **cache primitives only** 
 
 | Cache key                        | Where                                   | TTL    | Invalidated by                                                                                               |
 |----------------------------------|-----------------------------------------|--------|--------------------------------------------------------------------------------------------------------------|
-| `nav_pages`                      | `App\View\Composers\NavigationComposer` | 300s   | `Page::saved`, `Page::deleted`                                                                               |
+| `nav_pages`                      | `App\View\Composers\NavigationComposer` | 300s   | `Page::saved` (also fires on restore), `Page::deleted` (also fires on soft delete and force delete)          |
 | `dashboard_stats:{user_id}`      | `App\Filament\Widgets\StatsOverview`    | 60s    | `Article::saved/deleted`, `Page::saved/deleted` (owner's key), `User::saved` on role change, `User::deleted` |
 | `article_view:{article_id}:{md5(ip)}` | `ArticleController` view dedup          | 30 min | TTL only                                                                                                     |
 
@@ -259,15 +261,41 @@ Page::published()->get();     // is_published=true
 ```
 /                    - Home (latest articles)
 /articles            - Article listing
-/article/{slug}      - Article detail
-/category/{slug}     - Category articles
-/page/{slug}         - Page detail
+/article/{slug}      - Article detail (301 if {slug} is an old slug of a published article)
+/category/{slug}     - Category articles (301 from old slugs)
+/tag/{slug}          - Tag articles (301 from old slugs; 404 when the tag has no published articles)
+/page/{slug}         - Page detail (301 from old slugs)
+/search?q=           - Search published articles (title > excerpt > content ranking, LIKE wildcards escaped with ESCAPE '!', noindex)
+/feed                - RSS 2.0 of the latest 20 published articles
+/sitemap.xml         - Published articles/pages, active categories and tags with published articles
+/preview/article/{id}, /preview/page/{id} - `signed` middleware only; no view tracking, X-Robots-Tag noindex
 ```
+
+### Publishing, Trash and Slugs
+- `is_published` with an empty `published_at` is saved as "publish now" (the `saving` hook sets `published_at`). A future date means scheduled.
+- Article/Page delete is a soft delete. Restore uses the `restore` policy (admin or owner/orphan). `forceDelete` stays admin-only. Resources override `getRecordRouteBindingEloquentQuery()` so a trashed record can still open its edit page. A trashed row keeps its slug in the unique index, so slug dedup loops use `withTrashed()` and `HasUniqueSlug` uses `withoutGlobalScopes()`.
+- The slug auto-fills from the title only on create. Editing the title never changes a live URL. A slug change on update writes a `slug_redirects` row. The redirect lookup uses `wherePreviousSlug()` combined with the visibility scope, so it never reveals the new URL of a draft. A live record with the slug always wins over a redirect.
+- Slug inputs have the regex `^[a-z0-9]+(?:-[a-z0-9]+)*$` so they always match the route constraints.
+- `ViewOnSiteAction` (`app/Filament/Actions/`) links live records to the public URL and drafts to a 1-hour `URL::temporarySignedRoute` preview. Preview responses send `Referrer-Policy: no-referrer` (the middleware only sets its default when a response has none), so the signature cannot leak through links on the preview page.
+- Dashboard view counts are always scoped through `whereIn('article_id', Article::visibleTo(...))`, for admins too, so views of trashed articles are kept but not counted. "Published" counts use the `published()` scope (scheduled articles are not counted).
+- A tag page returns 404 unless the tag has at least one published article.
+- `ContentSeeder` is safe to re-run: `withTrashed()->firstOrCreate()` and demo views are only generated when `article_views` is empty.
+
+### SEO
+`public/robots.txt` stays a static file: the standard Laravel nginx config (Herd, Valet, Forge) has a `location = /robots.txt` block, so a Laravel route for it returns 404. The layout advertises the sitemap with `<link rel="sitemap">`; add a `Sitemap:` line with the full domain to robots.txt per deployment.
+The layout (`components/layouts/app.blade.php`) takes optional `title`, `description`, `image` (storage path), `canonical`, `robots`, `type` props and renders the description, canonical, OG and Twitter tags. Pages push extra head tags with `@push('head')`. JSON-LD is built in `@php` and printed with single-line `@json(...)` (a multi-line `@json` does not compile). In XML Blade views, print the prolog as `'<'.'?xml ...?'.'>'`, because a literal `?>` closes PHP.
 
 ## DaisyUI 5 Guidelines
 
+### Project design: "topic covers"
+- Themes: `paper` (default, light) and `ink` (`prefersdark: true`) in `resources/css/app.css`. There is no `data-theme` attribute on `<html>`, so the OS setting picks the theme.
+- Fonts come from Bunny Fonts, an independent GDPR-friendly drop-in replacement for Google Fonts (same open-source library, compatible URLs; `<link>` in the layout; CSP allows `https://fonts.bunny.net` in `style-src` and `font-src`): Schibsted Grotesk for headings and UI, Source Serif 4 for long-form text (`font-serif`, `.reading`). The admin panel uses Filament's local Inter.
+- `<x-cover :article>` renders the article's typographic cover: the title on the category's `cover_color` (or the featured image with a scrim). `Category::cover_color` falls back to `Category::PALETTE` by id; `cover_ink` picks whichever of white or `#151821` has the higher contrast on the cover color (WCAG luminance). `Category::color` is sanitized to `#rrggbb` on save, because it is printed into inline `style` attributes.
+- `<x-article-card>`, `<x-page-header>` (optional `topic` band) and `<x-pagination>` are the shared listing building blocks.
+- Overrides for third-party CSS (share buttons, Tailwind Typography quotes) must stay OUTSIDE `@layer`: unlayered library CSS beats any layered rule.
+
 ### Configuration (resources/css/app.css)
-DaisyUI 5 uses CSS-based configuration with Tailwind CSS 4:
+DaisyUI 5 uses CSS-based configuration with Tailwind CSS 4 (generic example; this project's real themes are `paper` and `ink`):
 ```css
 @plugin "daisyui" {
     themes: false;

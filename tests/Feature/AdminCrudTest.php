@@ -7,10 +7,10 @@ use App\Filament\Resources\Articles\Pages\ListArticles;
 use App\Filament\Resources\Categories\Pages\CreateCategory;
 use App\Filament\Resources\Categories\Pages\EditCategory;
 use App\Filament\Resources\Categories\Pages\ListCategories;
+use App\Filament\Resources\Media\Pages\ListMedia;
 use App\Filament\Resources\Pages\Pages\CreatePage as CreatePagePage;
 use App\Filament\Resources\Pages\Pages\EditPage as EditPagePage;
 use App\Filament\Resources\Pages\Pages\ListPages;
-use App\Filament\Resources\Media\Pages\ListMedia;
 use App\Filament\Resources\Users\Pages\CreateUser;
 use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Resources\Users\Pages\ListUsers;
@@ -139,7 +139,7 @@ describe('Articles', function () {
         Livewire::test(EditArticle::class, ['record' => $article->getRouteKey()])
             ->callAction('delete');
 
-        $this->assertDatabaseMissing('articles', ['id' => $article->id]);
+        $this->assertSoftDeleted('articles', ['id' => $article->id]);
     });
 
     it('appears in the list', function () {
@@ -217,7 +217,7 @@ describe('Pages', function () {
         Livewire::test(EditPagePage::class, ['record' => $page->getRouteKey()])
             ->callAction('delete');
 
-        $this->assertDatabaseMissing('pages', ['id' => $page->id]);
+        $this->assertSoftDeleted('pages', ['id' => $page->id]);
     });
 
     it('appears in the list', function () {
@@ -639,7 +639,7 @@ describe('Ownership authorization', function () {
         Livewire::test(EditArticle::class, ['record' => $article->getRouteKey()])
             ->callAction('delete');
 
-        $this->assertDatabaseMissing('articles', ['id' => $article->id]);
+        $this->assertSoftDeleted('articles', ['id' => $article->id]);
     });
 
     it('editor can delete own page via Filament', function () {
@@ -653,7 +653,7 @@ describe('Ownership authorization', function () {
         Livewire::test(EditPagePage::class, ['record' => $page->getRouteKey()])
             ->callAction('delete');
 
-        $this->assertDatabaseMissing('pages', ['id' => $page->id]);
+        $this->assertSoftDeleted('pages', ['id' => $page->id]);
     });
 
     it('editor cannot access admin article edit page via direct URL', function () {
@@ -920,5 +920,39 @@ describe('Ownership authorization', function () {
             ->callTableBulkAction('delete', [$adminMedia->id]);
 
         $this->assertDatabaseHas('media', ['id' => $adminMedia->id]);
+    });
+});
+
+// ── Slugs ────────────────────────────────────────────────────────
+
+describe('Slugs', function () {
+    it('rejects a slug the frontend routes cannot match', function (string $slug) {
+        Livewire::test(CreateArticle::class)
+            ->fillForm(['title' => 'Bad Slug', 'slug' => $slug])
+            ->call('create')
+            ->assertHasFormErrors(['slug' => 'regex']);
+    })->with(['My_Post', 'hello world', 'café', 'a/b', '-leading']);
+
+    it('fills the slug from the title on create', function () {
+        Livewire::test(CreateArticle::class)
+            ->fillForm(['title' => 'Fresh Title'])
+            ->assertSchemaStateSet(['slug' => 'fresh-title']);
+    });
+
+    it('keeps the existing slug when the title is edited', function () {
+        $article = Article::create(['title' => 'Original', 'slug' => 'original', 'content' => 'C', 'is_published' => true, 'published_at' => now()]);
+
+        Livewire::test(EditArticle::class, ['record' => $article->getRouteKey()])
+            ->fillForm(['title' => 'Original Fixed Typo'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        expect($article->fresh()->slug)->toBe('original');
+    });
+
+    it('falls back to a random slug when the title has no slug characters', function () {
+        $category = Category::create(['title' => '日本語', 'is_active' => true]);
+
+        expect($category->slug)->toMatch('/^[a-z0-9]{8}$/');
     });
 });

@@ -7,11 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
         new SocialShareButtons({
             container: '#share-buttons',
             platforms: ['x', 'facebook', 'linkedin'],
-            labels: {
-                x: 'Post on X',
-                facebook: 'Share on Facebook',
-                linkedin: 'Share on LinkedIn'
-            }
+            // Translated labels come from lang/en/frontend.php via a data attribute (CSP-safe, no inline script).
+            labels: JSON.parse(container.dataset.labels || '{}')
         });
     }
 });

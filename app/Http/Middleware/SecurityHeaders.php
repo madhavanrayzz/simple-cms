@@ -14,7 +14,10 @@ class SecurityHeaders
 
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        // A response may ask for a stricter policy (draft previews use no-referrer so the signed URL never leaks).
+        if (! $response->headers->has('Referrer-Policy')) {
+            $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        }
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
         // The Vite dev server (npm run dev) loads HMR assets and a websocket from a separate
@@ -47,9 +50,10 @@ class SecurityHeaders
             "default-src 'self'",
             $scriptSrc,
             // Purified content and Tailwind utilities can emit inline style attributes.
-            "style-src 'self' 'unsafe-inline'",
+            // Bunny Fonts serves both the stylesheet and the font files from fonts.bunny.net.
+            "style-src 'self' 'unsafe-inline' https://fonts.bunny.net",
             "img-src 'self' data: blob:",
-            "font-src 'self' data:",
+            "font-src 'self' data: https://fonts.bunny.net",
             "connect-src 'self'",
             "worker-src 'self' blob:",
             "object-src 'none'",

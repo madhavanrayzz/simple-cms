@@ -7,6 +7,7 @@ use App\Models\Article;
 use App\Models\ArticleView;
 use App\Models\Category;
 use App\Models\Page;
+use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -27,24 +28,28 @@ class ContentSeeder extends Seeder
                 'title' => 'Technology',
                 'slug' => 'technology',
                 'description' => 'Exploring the latest in tech, software development, and digital innovation.',
+                'color' => '#2a44d4',
                 'is_active' => true,
             ],
             [
                 'title' => 'Design',
                 'slug' => 'design',
                 'description' => 'Insights on UI/UX, visual design, and creative processes.',
+                'color' => '#e0533a',
                 'is_active' => true,
             ],
             [
                 'title' => 'Lifestyle',
                 'slug' => 'lifestyle',
                 'description' => 'Stories about living well, productivity, and personal growth.',
+                'color' => '#3f7d4e',
                 'is_active' => true,
             ],
             [
                 'title' => 'Business',
                 'slug' => 'business',
                 'description' => 'Strategies for startups, entrepreneurship, and professional development.',
+                'color' => '#c9931a',
                 'is_active' => true,
             ],
         ];
@@ -192,11 +197,30 @@ class ContentSeeder extends Seeder
         ];
 
         foreach ($articles as $articleData) {
-            $article = Article::firstOrCreate(['slug' => $articleData['slug']], $articleData);
+            $article = Article::withTrashed()->firstOrCreate(['slug' => $articleData['slug']], $articleData);
             if ($adminUser && ! $article->user_id) {
                 $article->user_id = $adminUser->id;
                 $article->saveQuietly(); // Only for user_id — content is already purified by firstOrCreate
             }
+        }
+
+        // Create Tags and attach them to articles (syncWithoutDetaching keeps re-runs idempotent)
+        $articleTags = [
+            'future-of-web-development-2026' => ['AI', 'JavaScript', 'Trends'],
+            'designing-for-accessibility-guide' => ['Accessibility', 'UX'],
+            'art-of-minimalist-ui-design' => ['UI', 'UX'],
+            'understanding-modern-javascript-frameworks' => ['JavaScript', 'Frameworks'],
+            'remote-work-productive-home-office' => ['Productivity', 'Remote Work'],
+            'color-theory-digital-design' => ['UI', 'Color'],
+            'api-design-best-practices' => ['APIs', 'Backend'],
+            'psychology-user-experience' => ['UX', 'Psychology'],
+            'database-optimization-techniques' => ['Backend', 'Databases'],
+            'effective-team-communication' => ['Productivity', 'Teams'],
+        ];
+
+        foreach ($articleTags as $slug => $names) {
+            $tagIds = collect($names)->map(fn ($name) => Tag::firstOrCreate(['name' => $name])->id);
+            Article::where('slug', $slug)->first()?->tags()->syncWithoutDetaching($tagIds);
         }
 
         // Create Pages
@@ -204,7 +228,7 @@ class ContentSeeder extends Seeder
             [
                 'title' => 'About Us',
                 'slug' => 'about',
-                'excerpt' => 'Learn more about Simple CMS and our mission.',
+                'excerpt' => 'What Simple CMS is, what it does, and what it is built with.',
                 'content' => $this->getAboutPageContent(),
                 'is_published' => true,
                 'sort_order' => 1,
@@ -236,7 +260,7 @@ class ContentSeeder extends Seeder
         ];
 
         foreach ($pages as $pageData) {
-            $page = Page::firstOrCreate(['slug' => $pageData['slug']], $pageData);
+            $page = Page::withTrashed()->firstOrCreate(['slug' => $pageData['slug']], $pageData);
             if ($adminUser && ! $page->user_id) {
                 $page->user_id = $adminUser->id;
                 $page->saveQuietly(); // Only for user_id — content is already purified by firstOrCreate
@@ -249,6 +273,11 @@ class ContentSeeder extends Seeder
 
     private function seedArticleViews(): void
     {
+        // Demo view data is generated once; re-running the seeder must not double the statistics.
+        if (ArticleView::exists()) {
+            return;
+        }
+
         $articles = Article::all();
 
         if ($articles->isEmpty()) {
@@ -896,33 +925,44 @@ HTML;
     private function getAboutPageContent(): string
     {
         return <<<'HTML'
-<p>Welcome to <strong>Simple CMS</strong>, a demonstration of a modern content management system built with cutting-edge web technologies.</p>
+<p><strong>Simple CMS</strong> is an open-source content management system for blogs, magazines and small company sites. Editors write in a web admin panel; readers get a fast, readable site that works on any screen.</p>
 
-<h2>About This Project</h2>
-<p>This CMS showcases best practices in Laravel development, featuring a clean architecture, intuitive admin panel, and a beautifully designed frontend.</p>
-
-<h2>Technology Stack</h2>
+<h2>Writing and publishing</h2>
 <ul>
-<li><strong>Laravel 12</strong> — The PHP framework for web artisans</li>
-<li><strong>Filament PHP 5</strong> — A powerful admin panel builder</li>
-<li><strong>DaisyUI 5</strong> — Beautiful UI components built on Tailwind CSS</li>
-<li><strong>Tailwind CSS 4</strong> — A utility-first CSS framework</li>
+<li>Articles with categories, tags, a featured image and an excerpt</li>
+<li>Static pages that can sit under a parent page, for sections such as About or Legal</li>
+<li>Drafts, scheduled publishing and private preview links to share a draft before it goes live</li>
+<li>A trash, so a deleted article or page can be restored</li>
+<li>A media library for images and files</li>
 </ul>
 
-<h2>Features</h2>
-<p>This CMS includes:</p>
+<h2>For readers</h2>
 <ul>
-<li>Article management with categories</li>
-<li>Static page management</li>
-<li>User authentication and authorization</li>
-<li>Responsive, accessible frontend design</li>
-<li>SEO-friendly URLs and structure</li>
+<li>Search across all published articles</li>
+<li>An RSS feed and pages per category and tag</li>
+<li>Related articles under every story</li>
+<li>A light and a dark theme that follow the reader's device setting</li>
 </ul>
 
-<h2>Open Source</h2>
-<p>This project is open source and available for learning, customization, and use in your own projects.</p>
+<h2>Built for search engines</h2>
+<ul>
+<li>Custom title and description per article and page, with social media previews</li>
+<li>An XML sitemap and structured data for articles</li>
+<li>When an editor changes a URL, the old link redirects to the new one</li>
+</ul>
 
-<p>Thank you for exploring Simple CMS!</p>
+<h2>Teams and security</h2>
+<p>Admins manage everything, including users. Editors manage their own articles and pages. All content is cleaned of unsafe HTML when it is saved, and the site sends strict security headers.</p>
+
+<h2>Technology</h2>
+<ul>
+<li><strong>Laravel 13</strong> for the application</li>
+<li><strong>Filament 5</strong> for the admin panel</li>
+<li><strong>Tailwind CSS 4</strong> and <strong>DaisyUI 5</strong> for the site design</li>
+</ul>
+
+<h2>Open source</h2>
+<p>The code is free to use, change and build on under the MIT license.</p>
 HTML;
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Articles\Schemas;
 
+use App\Filament\Schemas\SeoFields;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\RichEditor;
@@ -39,7 +40,7 @@ class ArticleForm
                             ->required()
                             ->maxLength(255)
                             ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
+                            ->afterStateUpdated(fn ($state, callable $set, string $operation) => $operation === 'create' ? $set('slug', Str::slug($state)) : null),
                         RichEditor::make('content')
                             ->columnSpanFull()
                             ->extraAttributes([
@@ -52,16 +53,34 @@ class ArticleForm
                             ->relationship('category', 'title')
                             ->searchable()
                             ->preload(),
+                        Select::make('tags')
+                            ->relationship('tags', 'name')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->createOptionForm([
+                                TextInput::make('name')
+                                    ->required()
+                                    ->maxLength(50),
+                            ]),
                         TextInput::make('slug')
                             ->required()
                             ->maxLength(255)
+                            ->regex('/^[a-z0-9]+(?:-[a-z0-9]+)*$/')
+                            ->validationMessages(['regex' => 'Use only lowercase letters, numbers and single hyphens, e.g. my-first-post.'])
                             ->unique(ignoreRecord: true),
                         Textarea::make('excerpt')
                             ->rows(6),
-                        DateTimePicker::make('published_at'),
+                        DateTimePicker::make('published_at')
+                            ->helperText(fn (): string => 'Leave empty to publish now. A future date schedules the article. Times are in '.config('app.timezone').'.'),
                         Toggle::make('is_published')
                             ->default(false),
                     ]),
+                Section::make('SEO')
+                    ->description('Optional. Search engines and social previews use the title and excerpt when these are empty.')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema(SeoFields::make()),
             ]);
     }
 }

@@ -6,12 +6,15 @@ with AI coding assistants like Claude Code.
 
 ## Features
 
-- **Admin Panel** - Beautiful admin interface powered by Filament 5
-- **Content Management** - Manage articles, categories, and pages
+- **Admin Panel** - Admin interface powered by Filament 5, with global search
+- **Content Management** - Articles, categories, tags and nested pages
+- **Publishing Workflow** - Drafts, scheduled publishing, private preview links and a trash with restore
+- **SEO** - Meta title and description, Open Graph and Twitter cards, JSON-LD, XML sitemap, RSS feed, and 301 redirects when a slug changes
+- **Search** - Search across the title, excerpt and text of published articles (title matches rank first)
 - **Media Library** - Manage uploaded images with Spatie Media Library
 - **Analytics Dashboard** - Track article views with charts and statistics
-- **User Roles** - Admin and Editor roles with different permissions
-- **Modern Frontend** - Clean, editorial-style design using DaisyUI 5, Tailwind CSS 4, and Lucide Icons
+- **User Roles** - Admin and Editor roles with ownership-based permissions
+- **Frontend** - Typographic "topic covers" in each category's color, light and dark themes, built with DaisyUI 5, Tailwind CSS 4 and Lucide Icons
 
 ## Screenshots
 
@@ -19,20 +22,20 @@ with AI coding assistants like Claude Code.
   <tr>
     <td width="50%">
       <p align="center"><strong>Homepage</strong></p>
-      <img src="https://github.com/user-attachments/assets/0373f16e-44f2-47f4-bc41-a735de13f263" alt="Homepage" />
+      <img src="https://github.com/user-attachments/assets/9121adce-8df7-4d9d-ae1a-9f82b6c3434b" alt="Homepage with topic covers" />
     </td>
     <td width="50%">
       <p align="center"><strong>Admin Panel</strong></p>
-      <img src="https://github.com/user-attachments/assets/54f17fb7-ee7f-4291-b1aa-0bb3be35cbc5" alt="Admin Panel" />
+      <img src="https://github.com/user-attachments/assets/a7fc9a97-3335-4a9d-b3f7-373484fea57f" alt="Admin dashboard with view statistics" />
     </td>
   </tr>
 </table>
 
 ## Requirements
 
-- PHP 8.3+
+- PHP 8.4+
 - Composer
-- Node.js 18+
+- Node.js 20.19+ or 22.12+
 - npm or yarn
 
 ## Installation
@@ -148,37 +151,51 @@ Access the admin panel at `/admin`:
 
 #### Categories
 
-Categories organize your articles by topic. Each category has:
+Categories organize articles by topic. Each category has:
 
-- Title
-- Slug (auto-generated)
+- Title and slug (the slug is filled from the title when you create it)
 - Description
-- Active status
+- Cover color (optional; used for article covers, otherwise a color is picked automatically)
+- Active status (an inactive category has no public page and is not shown on articles)
+
+#### Tags
+
+Tags group articles across categories. Create them in **Tags**, or directly from the tag field of an article.
+Each tag has a public page at `/tag/{slug}`.
 
 #### Articles
 
 Articles are the main content type. Each article has:
 
-- Title
-- Slug (auto-generated)
-- Excerpt (optional summary)
-- Content (rich text editor)
-- Featured image
-- Category (optional)
-- Published status and date
+- Title, slug, excerpt and rich-text content
+- Featured image (optional; without one, the article gets a typographic cover in its category color)
+- Category and tags
+- Publish switch and publish date
+- SEO title and description (optional)
 - View count tracking
 
 #### Pages
 
-Static pages for content like About, Contact, Privacy Policy, etc. Each page has:
+Static pages for content like About, Contact or Privacy Policy. Each page has:
 
-- Title
-- Slug (auto-generated)
-- Excerpt (optional summary)
-- Content (rich text editor)
-- Parent page (for hierarchical structure)
+- Title, slug, excerpt and rich-text content
+- Parent page (for a hierarchy; a page cannot be moved under one of its own children)
 - Sort order (for navigation)
-- Published status
+- Publish switch
+- SEO title and description (optional)
+
+### Publishing Workflow
+
+- **Draft, scheduled, published** - An article is a draft until you switch on *Is published*. With an empty
+  publish date it goes live immediately; with a future date it is scheduled. The article list shows the status
+  as a badge and can filter by it.
+- **Preview** - A draft or scheduled article or page has a *Preview* action. It opens a private link that
+  works for one hour without a login, so you can send it to a reviewer. Search engines do not index it.
+- **View on site** - A published record has a *View on site* action instead.
+- **Trash** - Deleting an article or page moves it to the trash. Use the *Trashed* filter to find it and
+  *Restore* to bring it back. Only admins can delete a record permanently.
+- **Changing a URL** - When you change a slug, the old URL keeps working: it redirects (301) to the new one.
+  On the edit form, changing the title does not change the slug, so live links do not break.
 
 ### User Roles
 
@@ -202,12 +219,15 @@ All four widgets respect ownership scoping: editors see their own content (plus 
 
 ### Admin Resources
 
-- **Articles** - CRUD for articles with view count display
-- **Categories** - CRUD for categories
-- **Pages** - CRUD for static pages
-- **Users** - User management (Admin only)
+- **Articles** - Articles with status badges, filters (status, category, tag, trash), preview and restore
+- **Categories** - Categories with cover colors
+- **Pages** - Static pages with preview and restore
+- **Tags** - Tags with article counts
+- **Users** - User management (admin only)
 - **Media Library** - Browse and upload images (powered by Spatie Media Library)
 - **Article Views** - Detailed view logs with filtering (under Analytics)
+
+The search field at the top of the admin panel finds articles, pages, categories and tags.
 
 ### Media Library
 
@@ -225,13 +245,26 @@ Images are stored in `storage/app/public/` and managed by [Spatie Media Library]
 
 ### Frontend Routes
 
-| Route              | Description                                 |
-|--------------------|---------------------------------------------|
-| `/`                | Home page with featured and latest articles |
-| `/articles`        | All articles listing with category filters  |
-| `/article/{slug}`  | Individual article page                     |
-| `/category/{slug}` | Articles filtered by category               |
-| `/page/{slug}`     | Static page                                 |
+| Route                  | Description                                                       |
+|------------------------|-------------------------------------------------------------------|
+| `/`                    | Home page: lead story, latest articles and topics                 |
+| `/articles`            | All articles, with category filters                               |
+| `/article/{slug}`      | Article page                                                      |
+| `/category/{slug}`     | Articles in a category                                            |
+| `/tag/{slug}`          | Articles with a tag                                               |
+| `/page/{slug}`         | Static page                                                       |
+| `/search?q=`           | Search in published articles (titles rank first)                  |
+| `/feed`                | RSS feed of the latest 20 articles                                |
+| `/sitemap.xml`         | XML sitemap of all public articles, pages, categories and tags    |
+| `/robots.txt`          | Static file; add a `Sitemap:` line with your own domain           |
+| `/preview/article/{id}`, `/preview/page/{id}` | Private preview links, created from the admin panel |
+
+### SEO
+
+Every page has a title, description and canonical URL, plus Open Graph and Twitter card tags for link
+previews. Article pages also include structured data (schema.org `BlogPosting`). Set a custom SEO title and
+description per article or page in the collapsed **SEO** section of the form; without them, the title and
+excerpt are used.
 
 ## Developer Guide
 
@@ -601,18 +634,41 @@ protected int|string|array $columnSpan = 'full';
 
 ### Theme
 
-The frontend uses a custom DaisyUI theme called "editorial". You can modify it in `resources/css/app.css`:
+The frontend has two DaisyUI themes in `resources/css/app.css`: `paper` (light, default) and `ink`
+(dark, used automatically when the visitor's device is in dark mode):
 
 ```css
 @plugin "daisyui/theme" {
-  name: "editorial";
+  name: "paper";
   default: true;
   color-scheme: light;
 
-  --color-primary: oklch(45% 0.15 25);
+  --color-primary: #2a44d4;
   /* ... other colors */
 }
 ```
+
+Articles without a featured image get a typographic cover in their category's color. Pick the color per
+category in the admin (Categories → Cover color); without a choice, a color from `Category::PALETTE` is used.
+
+### Fonts
+
+The frontend uses two typefaces, both free under the [SIL Open Font License](https://openfontlicense.org):
+
+| Typeface | Used for |
+|----------|----------|
+| [Schibsted Grotesk](https://fonts.bunny.net/family/schibsted-grotesk) | Headings, navigation and interface text |
+| [Source Serif 4](https://fonts.bunny.net/family/source-serif-4) | Article and page body text |
+
+They load from [Bunny Fonts](https://fonts.bunny.net), an independent font service by bunny.net. It hosts the
+same open-source font library as Google Fonts and uses a compatible URL format, so it works as a drop-in
+replacement. Bunny states that it does no tracking and keeps no logs of visitors, which makes it the safer
+choice for GDPR than loading fonts from Google.
+
+- The stylesheet link is in `resources/views/components/layouts/app.blade.php`.
+- The Content Security Policy in `app/Http/Middleware/SecurityHeaders.php` allows `https://fonts.bunny.net`
+  in `style-src` and `font-src`. If you change the font host, update both places.
+- The admin panel does not use these fonts. Filament serves its own copy of Inter from your server.
 
 ### Icons
 
@@ -628,7 +684,8 @@ Browse available icons at [lucide.dev](https://lucide.dev/icons/).
 
 ### Favicon
 
-The default favicon is `public/favicon.png` (192×192), wired up in `resources/views/components/layouts/app.blade.php`. 
+The site name is a plain text wordmark. The favicon is an "S" monogram in `public/favicon.svg`, with
+`public/favicon.png` (192×192) as a fallback, both wired up in `resources/views/components/layouts/app.blade.php`. 
 For a full icon set (multiple PNG sizes, web manifest), generate one at <https://ozdemir.dev/favicon-generator/>.
 
 ### Internationalization
@@ -646,51 +703,62 @@ To add a new language:
 
 ```
 ├── app/
-│   ├── Filament/          # Filament admin resources
-│   │   └── Resources/     # CRUD resources for models
+│   ├── Filament/
+│   │   ├── Actions/           # Shared admin actions (View on site / Preview)
+│   │   ├── AvatarProviders/   # Local initials avatars for the admin panel
+│   │   ├── Resources/         # Admin resources (Articles, Categories, Pages, Tags, Users, Media)
+│   │   ├── Schemas/           # Shared form fields (SEO)
+│   │   └── Widgets/           # Dashboard widgets
 │   ├── Http/
-│   │   └── Controllers/   # Frontend controllers
-│   └── Models/            # Eloquent models
+│   │   ├── Controllers/Frontend/  # Public site controllers
+│   │   └── Middleware/            # Security headers
+│   ├── Models/                # Eloquent models
+│   │   └── Concerns/          # Shared model traits (ownership, unique slugs, slug redirects)
+│   └── Policies/              # Authorization
 ├── database/
-│   ├── migrations/        # Database migrations
-│   └── seeders/           # Database seeders
+│   ├── migrations/
+│   └── seeders/
 ├── resources/
-│   ├── css/
-│   │   └── app.css        # Tailwind + DaisyUI styles
+│   ├── css/app.css            # Tailwind, DaisyUI themes and cover styles
 │   └── views/
-│       ├── components/
-│       │   └── layouts/   # Layout components
-│       └── frontend/      # Frontend views
-└── routes/
-    └── web.php            # Web routes
+│       ├── components/        # Layout, cover, article card, page header, pagination
+│       ├── feeds/             # RSS feed and sitemap
+│       └── frontend/          # Public pages
+└── routes/web.php
 ```
 
 ## Key Files
 
-| File                                               | Purpose                                              |
-|----------------------------------------------------|------------------------------------------------------|
-| `app/Models/Article.php`                           | Article model with published scope and view tracking |
-| `app/Models/ArticleView.php`                       | Article view tracking model                          |
-| `app/Models/Category.php`                          | Category model                                       |
-| `app/Models/Page.php`                              | Page model with hierarchical support                 |
-| `app/Filament/Resources/`                          | Admin CRUD interfaces                                |
-| `app/Filament/Widgets/`                            | Dashboard widgets (stats, charts, tables)            |
-| `resources/css/app.css`                            | Custom DaisyUI theme and styles                      |
-| `resources/views/components/layouts/app.blade.php` | Main layout                                          |
-| `lang/en/frontend.php`                             | Frontend language strings (fully internationalized)  |
-| `database/seeders/ContentSeeder.php`               | Sample content seeder with view data                 |
+| File                                                   | Purpose                                                        |
+|--------------------------------------------------------|----------------------------------------------------------------|
+| `app/Models/Article.php`                               | Article model: published scope, search, status, related articles |
+| `app/Models/Category.php`                              | Category model and cover colors                                |
+| `app/Models/Page.php`                                  | Page model with hierarchy                                      |
+| `app/Models/Tag.php`                                   | Tag model                                                      |
+| `app/Models/Concerns/HasSlugRedirects.php`             | Keeps old slugs so old links redirect                          |
+| `app/Policies/OwnerablePolicy.php`                     | Who may view, edit, delete and restore content                 |
+| `app/Http/Middleware/SecurityHeaders.php`              | Content Security Policy and other security headers             |
+| `app/Http/Controllers/Frontend/FeedController.php`     | RSS feed and sitemap                                           |
+| `resources/views/components/layouts/app.blade.php`     | Main layout with SEO tags                                      |
+| `resources/views/components/cover.blade.php`           | Typographic article cover                                      |
+| `resources/css/app.css`                                | Themes and styles                                              |
+| `lang/en/frontend.php`                                 | Frontend text (fully internationalized)                        |
+| `database/seeders/ContentSeeder.php`                   | Sample content, tags and view data                             |
 
 ## Testing
 
-Run the test suite:
+Run the test suite (Pest 5 on PHPUnit 13):
 
 ```bash
 ./vendor/bin/pest
 ```
 
-The test suite includes:
-- **Unit Tests** - Models (Article, Category, Page, User), content sanitization, view tracking
-- **Feature Tests** - Frontend routes, admin panel access, admin CRUD operations, role-based permissions, security
+The tests cover:
+
+- **Models** - Slugs, sanitization, view tracking, ownership scopes, publishing status, cover colors
+- **Admin panel** - CRUD for every resource, role permissions, trash and restore, preview links
+- **Frontend** - All public routes, search, tags, redirects from old slugs, feeds and sitemap, SEO tags
+- **Security** - Headers and CSP, XSS sanitization, rate limiting, upload rules, authorization
 
 ## Commands Reference
 
@@ -712,11 +780,8 @@ php artisan db:seed --class=ContentSeeder  # Seed sample content
 # Production
 npm run build                  # Build assets for production
 php artisan optimize           # Cache config, routes, views
-
-# Filament
-php artisan filament:user      # Create new admin user
 ```
 
 ## License
 
-This project is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Simple CMS is open-source software licensed under the [MIT license](LICENSE).

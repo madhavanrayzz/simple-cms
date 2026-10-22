@@ -3,17 +3,23 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOwner;
+use App\Models\Concerns\HasSlugRedirects;
 use App\Models\Concerns\HasUniqueSlug;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Stevebauman\Purify\Facades\Purify;
 
 class Article extends Model
 {
     use BelongsToOwner;
+    use HasSlugRedirects;
     use HasUniqueSlug;
+    use SoftDeletes;
 
     /**
      * @var string[]
@@ -23,6 +29,8 @@ class Article extends Model
         'title',
         'slug',
         'excerpt',
+        'meta_title',
+        'meta_description',
         'content',
         'featured_image',
         'is_published',
@@ -49,10 +57,10 @@ class Article extends Model
             }
 
             if (empty($article->slug)) {
-                $baseSlug = Str::slug($article->title);
+                $baseSlug = Str::slug($article->title) ?: Str::lower(Str::random(8));
                 $slug = $baseSlug;
                 $count = 1;
-                while (Article::where('slug', $slug)->exists()) {
+                while (Article::withTrashed()->where('slug', $slug)->exists()) {
                     $slug = $baseSlug.'-'.++$count;
                 }
                 $article->slug = $slug;
@@ -69,8 +77,16 @@ class Article extends Model
             if ($article->isDirty('title') && $article->title) {
                 $article->title = strip_tags($article->title);
             }
-            if ($article->isDirty('excerpt') && $article->excerpt) {
-                $article->excerpt = strip_tags($article->excerpt);
+            foreach (['excerpt', 'meta_title', 'meta_description'] as $field) {
+                if ($article->isDirty($field) && $article->{$field}) {
+                    $article->{$field} = strip_tags($article->{$field});
+                }
+            }
+
+            // Publishing without a date used to leave the article invisible forever,
+            // because the published scope requires published_at. Treat it as "publish now".
+            if ($article->is_published && $article->published_at === null) {
+                $article->published_at = now();
             }
         });
 
@@ -99,6 +115,14 @@ class Article extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class);
     }
 
     /**
@@ -138,4 +162,68 @@ class Article extends Model
             ->where('published_at', '<=', now());
     }
 
+    /**
+     * Published articles that share this article's category or one of its tags, newest first.
+     */
+    public function related(int $limit = 5): \Illuminate\Support\Collection
+    {
+        $tagIds = $this->tags()->pluck('tags.id');
+
+        return static::published()
+            ->with('category')
+            ->whereKeyNot($this->getKey())
+            ->where(fn (Builder $q) => $q
+                ->when($this->category_id, fn (Builder $q) => $q->where('category_id', $this->category_id))
+                ->when($tagIds->isNotEmpty(), fn (Builder $q) => $q->orWhereHas('tags', fn (Builder $q) => $q->whereKey($tagIds)))
+                ->when(! $this->category_id && $tagIds->isEmpty(), fn (Builder $q) => $q->whereRaw('1 = 0')))
+            ->latest('published_at')
+            ->take($limit)
+            ->get();
+    }
+
+    /**
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param string                                $term
+     *
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeSearch(Builder $query, string $term): Builder
+    {
+        // Escape LIKE wildcards with an explicit ESCAPE character: SQLite has no default one,
+        // so a backslash escape would silently break searches for "100%" or "snake_case".
+        $like = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term).'%';
+
+        // Title matches first, then excerpt matches, then body-only matches; newest first within each.
+        return $query->where(fn (Builder $q) => $q
+            ->whereRaw("title LIKE ? ESCAPE '!'", [$like])
+            ->orWhereRaw("excerpt LIKE ? ESCAPE '!'", [$like])
+            ->orWhereRaw("content LIKE ? ESCAPE '!'", [$like]))
+            ->orderByRaw("CASE WHEN title LIKE ? ESCAPE '!' THEN 0 WHEN excerpt LIKE ? ESCAPE '!' THEN 1 ELSE 2 END", [$like, $like])
+            ->latest('published_at');
+    }
+
+    /**
+     * The category as visitors may see it: null when it is inactive, because its page returns 404.
+     */
+    public function getPublicCategoryAttribute(): ?Category
+    {
+        return $this->category?->is_active ? $this->category : null;
+    }
+
+    public function getReadingTimeAttribute(): int
+    {
+        return max(1, (int) ceil(str_word_count(strip_tags((string) $this->content)) / 200));
+    }
+
+    /**
+     * draft, scheduled or published — what a visitor would see right now.
+     */
+    public function getStatusAttribute(): string
+    {
+        if (! $this->is_published || $this->published_at === null) {
+            return 'draft';
+        }
+
+        return $this->published_at->isFuture() ? 'scheduled' : 'published';
+    }
 }

@@ -14,10 +14,13 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PageResource extends Resource
 {
     protected static ?string $model = Page::class;
+
+    protected static ?string $recordTitleAttribute = 'title';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocument;
 
@@ -34,6 +37,22 @@ class PageResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->visibleTo(auth()->user());
+    }
+
+    /**
+     * Let the edit page open a record that is in the trash, so it can be restored.
+     */
+    public static function getRecordRouteBindingEloquentQuery(): Builder
+    {
+        return parent::getRecordRouteBindingEloquentQuery()->withoutGlobalScopes([SoftDeletingScope::class]);
+    }
+
+    /**
+     * @return string[]
+     */
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['title', 'slug'];
     }
 
     public static function getRelations(): array

@@ -2,55 +2,217 @@
 @plugin "@tailwindcss/typography";
 @plugin "daisyui/index.js" { themes: false; exclude: properties; }
 
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
-/* Editorial - A refined newspaper/magazine light theme */
+/*
+ * Topic covers — a cool, ink-on-paper magazine. Each category has a cover color
+ * (set per category in the admin); articles without a photo get a typographic cover
+ * in that color. Everything else stays quiet so the covers carry the page.
+ */
+@theme {
+    --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-display: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
+}
+
 @plugin "daisyui/theme" {
-    name: "editorial";
+    name: "paper";
     default: true;
     color-scheme: light;
-    /* Warm off-white paper backgrounds */
-    --color-base-100: oklch(98% 0.006 90);
-    --color-base-200: oklch(95% 0.008 90);
-    --color-base-300: oklch(90% 0.01 90);
-    --color-base-content: oklch(20% 0.02 60);
-    /* Deep burgundy/wine primary - classic editorial */
-    --color-primary: oklch(40% 0.15 15);
-    --color-primary-content: oklch(98% 0.006 90);
-    /* Muted teal secondary */
-    --color-secondary: oklch(45% 0.1 200);
-    --color-secondary-content: oklch(98% 0.006 90);
-    /* Gold accent */
-    --color-accent: oklch(70% 0.15 80);
-    --color-accent-content: oklch(20% 0.02 60);
-    /* Dark charcoal neutral for footer */
-    --color-neutral: oklch(25% 0.015 260);
-    --color-neutral-content: oklch(90% 0.01 90);
-    /* Status colors */
-    --color-info: oklch(55% 0.15 230);
-    --color-info-content: oklch(98% 0.006 90);
-    --color-success: oklch(55% 0.18 145);
-    --color-success-content: oklch(98% 0.006 90);
-    --color-warning: oklch(75% 0.15 80);
-    --color-warning-content: oklch(20% 0.02 60);
-    --color-error: oklch(55% 0.2 25);
-    --color-error-content: oklch(98% 0.006 90);
-    /* Subtle rounded corners */
-    --radius-box: 0.5rem;
+    --color-base-100: #f5f6f8;
+    --color-base-200: #eceef2;
+    --color-base-300: #d9dce3;
+    --color-base-content: #151821;
+    --color-primary: #2a44d4;
+    --color-primary-content: #ffffff;
+    --color-secondary: #5b6270;
+    --color-secondary-content: #ffffff;
+    --color-accent: #e0533a;
+    --color-accent-content: #ffffff;
+    --color-neutral: #151821;
+    --color-neutral-content: #d9dce3;
+    --color-info: #2a44d4;
+    --color-info-content: #ffffff;
+    --color-success: #3f7d4e;
+    --color-success-content: #ffffff;
+    --color-warning: #f2c14e;
+    --color-warning-content: #151821;
+    --color-error: #c73a2b;
+    --color-error-content: #ffffff;
+    --radius-box: 0.375rem;
     --radius-field: 0.375rem;
     --radius-selector: 0.25rem;
     --border: 1px;
-    --depth: 1;
+    --depth: 0;
     --noise: 0;
 }
 
-/* Gradient text for hero */
-.text-gradient {
-    background: linear-gradient(135deg, oklch(40% 0.15 15), oklch(55% 0.12 25));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+@plugin "daisyui/theme" {
+    name: "ink";
+    prefersdark: true;
+    color-scheme: dark;
+    --color-base-100: #12141b;
+    --color-base-200: #1a1d26;
+    --color-base-300: #2a2e3a;
+    --color-base-content: #e6e8ee;
+    --color-primary: #7d8fff;
+    --color-primary-content: #12141b;
+    --color-secondary: #9aa1af;
+    --color-secondary-content: #12141b;
+    --color-accent: #ff7a5f;
+    --color-accent-content: #12141b;
+    --color-neutral: #0b0c10;
+    --color-neutral-content: #b8bdc8;
+    --color-info: #7d8fff;
+    --color-info-content: #12141b;
+    --color-success: #6fbf82;
+    --color-success-content: #12141b;
+    --color-warning: #f2c14e;
+    --color-warning-content: #12141b;
+    --color-error: #ff6b5b;
+    --color-error-content: #12141b;
+    --radius-box: 0.375rem;
+    --radius-field: 0.375rem;
+    --radius-selector: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
+}
+
+@layer base {
+    html {
+        font-feature-settings: "ss01", "tnum" 0;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4 {
+        font-family: var(--font-display);
+        letter-spacing: -0.02em;
+        text-wrap: balance;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+    }
+}
+
+@layer components {
+    /* A typographic cover: the title set large on the topic color. */
+    .cover {
+        --topic: var(--color-primary);
+        --topic-ink: #ffffff;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+        background: var(--topic);
+        color: var(--topic-ink);
+        border-radius: var(--radius-box);
+        padding: clamp(1rem, 2.5vw, 2rem);
+        container-type: inline-size;
+        isolation: isolate;
+    }
+
+    /* The topic's initial, cropped off the corner — gives each cover its own shape. */
+    .cover::after {
+        content: attr(data-initial);
+        position: absolute;
+        right: -0.08em;
+        bottom: -0.32em;
+        z-index: -1;
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: min(62cqi, 22rem);
+        line-height: 1;
+        letter-spacing: -0.06em;
+        opacity: 0.16;
+    }
+
+    .cover-topic {
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+
+    .cover-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        line-height: 1.02;
+        letter-spacing: -0.035em;
+        font-size: clamp(1.25rem, 9.5cqi, 4.25rem);
+        text-wrap: balance;
+        max-width: 18ch;
+    }
+
+    .cover img {
+        position: absolute;
+        inset: 0;
+        z-index: -2;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .cover:has(img)::after {
+        content: none;
+    }
+
+    .cover:has(img) {
+        background: #151821;
+    }
+
+    /* Photos get a full scrim so both the topic label and the title stay readable. */
+    .cover:has(img)::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(rgb(0 0 0 / 0.5), rgb(0 0 0 / 0.15) 40%, rgb(0 0 0 / 0.72));
+    }
+
+    .topic-dot {
+        display: inline-block;
+        width: 0.625rem;
+        height: 0.625rem;
+        border-radius: 9999px;
+        background: var(--topic, var(--color-primary));
+        flex-shrink: 0;
+    }
+
+    /* Long-form reading: serif body, comfortable measure. */
+    .reading {
+        font-family: var(--font-serif);
+        font-size: 1.1875rem;
+        line-height: 1.7;
+        max-width: 68ch;
+    }
+
+    .reading :where(h2, h3, h4) {
+        font-family: var(--font-display);
+    }
+}
+
+/* Outside any layer: these override third-party and plugin CSS, which is unlayered. */
+/* Content already carries its own quote marks; Tailwind Typography would add a second pair. */
+.reading blockquote p::before,
+.reading blockquote p::after {
+    content: none;
+}
+
+/* Quiet, outlined share buttons instead of the library's brand-colored blocks. */
+#share-buttons .social-share-button {
+    background: transparent;
+    color: var(--color-base-content);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-field);
+    box-shadow: none;
+}
+
+#share-buttons .social-share-button:hover {
+    border-color: var(--color-base-content);
+    background: var(--color-base-200);
 }

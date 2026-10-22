@@ -239,3 +239,15 @@ describe('cache deserialization protection', function () {
             ->and($config['serializable_classes'])->toBeFalse();
     });
 });
+
+describe('admin assets stay first-party', function () {
+    it('loads no third-party font or avatar in the admin panel', function () {
+        $this->actingAs(createUser(\App\Enums\UserRole::Admin, ['name' => 'Ada Lovelace']));
+
+        $html = $this->get('/admin')->assertOk()->getContent();
+
+        expect($html)->not->toContain('fonts.bunny.net')
+            ->not->toContain('ui-avatars.com')
+            ->toContain('data:image/svg+xml;base64,');
+    });
+});

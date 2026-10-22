@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Pages\Schemas;
 
+use App\Filament\Schemas\SeoFields;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -23,7 +24,7 @@ class PageForm
                             ->required()
                             ->maxLength(255)
                             ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
+                            ->afterStateUpdated(fn ($state, callable $set, string $operation) => $operation === 'create' ? $set('slug', Str::slug($state)) : null),
                         RichEditor::make('content')
                             ->extraAttributes([
                                 'style' => 'min-height: 300px;',
@@ -33,17 +34,24 @@ class PageForm
                     ->schema([
                         Select::make('parent_id')
                             ->relationship('parent', 'title', function ($query, $record) {
+                                // A page cannot be its own parent, nor sit under one of its descendants.
                                 if ($record) {
-                                    $query->where('id', '!=', $record->id);
+                                    $query->whereKeyNot([$record->id, ...$record->descendantIds()]);
                                 }
 
-                                return $query->visibleTo(auth()->user());
+                                // Editors pick from pages they can see, but always keep the current parent,
+                                // even when another user owns it; otherwise the form could not be saved.
+                                return $query->where(fn ($q) => $q
+                                    ->visibleTo(auth()->user())
+                                    ->when($record?->parent_id, fn ($q) => $q->orWhereKey($record->parent_id)));
                             })
                             ->searchable()
                             ->preload(),
                         TextInput::make('slug')
                             ->required()
                             ->maxLength(255)
+                            ->regex('/^[a-z0-9]+(?:-[a-z0-9]+)*$/')
+                            ->validationMessages(['regex' => 'Use only lowercase letters, numbers and single hyphens, e.g. my-first-post.'])
                             ->unique(ignoreRecord: true),
                         TextInput::make('sort_order')
                             ->numeric()
@@ -53,6 +61,11 @@ class PageForm
                         Toggle::make('is_published')
                             ->default(false),
                     ]),
+                Section::make('SEO')
+                    ->description('Optional. Search engines and social previews use the title and excerpt when these are empty.')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema(SeoFields::make()),
             ]);
     }
 }

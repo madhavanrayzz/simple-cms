@@ -118,13 +118,22 @@ describe('views', function () {
         expect($view->viewed_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
     });
 
-    it('deletes views when article is deleted', function () {
+    it('keeps views when article is moved to trash', function () {
+        $this->article->recordView('127.0.0.1');
+        $this->article->recordView('192.168.1.1');
+
+        $this->article->delete();
+
+        expect(ArticleView::count())->toBe(2);
+    });
+
+    it('deletes views when article is permanently deleted', function () {
         $this->article->recordView('127.0.0.1');
         $this->article->recordView('192.168.1.1');
 
         expect(ArticleView::count())->toBe(2);
 
-        $this->article->delete();
+        $this->article->forceDelete();
 
         expect(ArticleView::count())->toBe(0);
     });

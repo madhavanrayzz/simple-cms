@@ -1,4 +1,4 @@
-<x-layouts.app :title="__('frontend.errors.404.title')">
+<x-layouts.app :title="__('frontend.errors.404.title')" robots="noindex">
     <section class="container mx-auto px-6 py-24 text-center">
         <div class="max-w-md mx-auto">
             <div class="w-20 h-20 rounded-full bg-base-200 flex items-center justify-center mx-auto mb-6">

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\Articles\ArticleResource;
 use App\Models\Article;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -28,14 +29,14 @@ class TopArticlesTable extends TableWidget
             )
             ->columns([
                 ImageColumn::make('featured_image')
+                    ->disk('public')
                     ->label('')
                     ->circular()
                     ->defaultImageUrl(null),
                 TextColumn::make('title')
                     ->searchable()
                     ->limit(40)
-                    ->url(fn (Article $record) => route('articles.show', $record->slug))
-                    ->openUrlInNewTab(),
+                    ->url(fn (Article $record) => ArticleResource::getUrl('edit', ['record' => $record])),
                 TextColumn::make('category.title')
                     ->badge()
                     ->color('gray'),

@@ -3,17 +3,21 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOwner;
+use App\Models\Concerns\HasSlugRedirects;
 use App\Models\Concerns\HasUniqueSlug;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Stevebauman\Purify\Facades\Purify;
 
 class Page extends Model
 {
     use BelongsToOwner;
+    use HasSlugRedirects;
     use HasUniqueSlug;
+    use SoftDeletes;
 
     /**
      * @var string[]
@@ -23,6 +27,8 @@ class Page extends Model
         'title',
         'slug',
         'excerpt',
+        'meta_title',
+        'meta_description',
         'content',
         'is_published',
         'sort_order',
@@ -48,10 +54,10 @@ class Page extends Model
             }
 
             if (empty($page->slug)) {
-                $baseSlug = Str::slug($page->title);
+                $baseSlug = Str::slug($page->title) ?: Str::lower(Str::random(8));
                 $slug = $baseSlug;
                 $count = 1;
-                while (Page::where('slug', $slug)->exists()) {
+                while (Page::withTrashed()->where('slug', $slug)->exists()) {
                     $slug = $baseSlug.'-'.++$count;
                 }
                 $page->slug = $slug;
@@ -68,8 +74,10 @@ class Page extends Model
             if ($page->isDirty('title') && $page->title) {
                 $page->title = strip_tags($page->title);
             }
-            if ($page->isDirty('excerpt') && $page->excerpt) {
-                $page->excerpt = strip_tags($page->excerpt);
+            foreach (['excerpt', 'meta_title', 'meta_description'] as $field) {
+                if ($page->isDirty($field) && $page->{$field}) {
+                    $page->{$field} = strip_tags($page->{$field});
+                }
             }
         });
 
@@ -133,5 +141,26 @@ class Page extends Model
     public function scopeRoots($query)
     {
         return $query->whereNull('parent_id');
+    }
+
+    /**
+     * IDs of every page below this one, at any depth. Walks the tree level by level, and
+     * stops on ids it has seen already, so a cycle that exists in old data cannot loop forever.
+     *
+     * @return int[]
+     */
+    public function descendantIds(): array
+    {
+        $ids = [];
+        $level = [$this->getKey()];
+        while ($level) {
+            $level = array_values(array_diff(
+                static::withTrashed()->whereIn('parent_id', $level)->pluck('id')->all(),
+                $ids,
+                [$this->getKey()]
+            ));
+            $ids = array_merge($ids, $level);
+        }
+        return $ids;
     }
 }

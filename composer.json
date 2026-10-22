@@ -6,23 +6,23 @@
     "keywords": ["laravel", "filament", "cms", "daisyui"],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
-        "filament/filament": "^5.6",
-        "filament/spatie-laravel-media-library-plugin": "^5.6",
-        "laravel/framework": "^13.0",
+        "php": "^8.4",
+        "filament/filament": "^5.10",
+        "filament/spatie-laravel-media-library-plugin": "^5.10",
+        "laravel/framework": "^13.38",
         "laravel/tinker": "^3.0",
-        "mallardduck/blade-lucide-icons": "^1.26",
+        "mallardduck/blade-lucide-icons": "^2.0",
         "stevebauman/purify": "^6.3"
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",
-        "laravel/pail": "^1.2",
-        "laravel/pint": "^1.27",
-        "laravel/sail": "^1.53",
-        "mockery/mockery": "^1.6",
-        "nunomaduro/collision": "^8.9",
-        "pestphp/pest": "^4.0",
-        "phpunit/phpunit": "^12.0"
+        "laravel/pail": "^1.2.7",
+        "laravel/pint": "^1.32",
+        "laravel/sail": "^1.69",
+        "mockery/mockery": "^1.6.15",
+        "nunomaduro/collision": "^8.9.5",
+        "pestphp/pest": "^5.3",
+        "phpunit/phpunit": "^13.4"
     },
     "autoload": {
         "psr-4": {

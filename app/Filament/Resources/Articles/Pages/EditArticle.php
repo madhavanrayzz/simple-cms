@@ -2,8 +2,11 @@
 
 namespace App\Filament\Resources\Articles\Pages;
 
+use App\Filament\Actions\ViewOnSiteAction;
 use App\Filament\Resources\Articles\ArticleResource;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditArticle extends EditRecord
@@ -13,7 +16,10 @@ class EditArticle extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            ViewOnSiteAction::forArticle(),
             DeleteAction::make(),
+            RestoreAction::make(),
+            ForceDeleteAction::make(),
         ];
     }
 }
